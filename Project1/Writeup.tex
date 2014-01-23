@@ -1,9 +1,9 @@
 \documentclass[a4paper, 12pt]{report}
 
+\usepackage{listings}
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\usepackage{listings}
 
 \begin{document}
     \begin{center}
@@ -14,5 +14,16 @@
         {\tiny Typeset via \LaTeX}
     \end{center}
     
-    % \lstinputlisting[basicstyle=\ttfamily]{Blah.txt}
+    The algorithm is implemented in ``align.py''.  
+    It is called from either the commandline (see ``Compare.bat'') 
+        or from the Python shell (see ``compare\_proteins.py'').
+    
+    The results for comparing ``deadly'' to ``ddgearlyk'' can be found in (``AB.out'')
+    and are included in this write-up for convenience:
+    \lstinputlisting[basicstyle=\ttfamily]{AB.out}
+    
+    \pagebreak
+    The results for each protein pair comparison can be found in ``Proteins.out''
+    and are included in this write-up for convenience:
+    \lstinputlisting[basicstyle=\ttfamily]{Proteins.out}
 \end{document}

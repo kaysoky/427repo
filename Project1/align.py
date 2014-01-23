@@ -1,5 +1,7 @@
 import sys
+import os
 import argparse
+import random
 
 import numpy
 from numpy import zeros, array, argmax, size, unravel_index
@@ -8,7 +10,7 @@ from numpy import zeros, array, argmax, size, unravel_index
 A local file containing the score matrix 
 for alignment of various proteins.
 """
-BLOSUM = "BLOSUM62.txt"
+BLOSUM = 'BLOSUM62.txt'
 
 """
 A map from protein letter to index into the BLOSUM score matrix
@@ -28,12 +30,18 @@ GAP_COST = -4
 """
 The maximum length of the protein label used when printing alignments
 """
-LABEL_LENGTH = 5
+LABEL_LENGTH = 6
 
 """
 The number of letters per line of sequence printing
 """
 SEQUENCE_FRAGMENT = 60
+
+"""
+File extension that triggers some additional processing
+The first line is ignored and whitespace is stripped out
+"""
+FASTA = '.fasta'
     
 # Read in the score matrix
 with open(BLOSUM, 'r') as f:
@@ -57,7 +65,7 @@ for iter in range(len(content) - 1):
 def do_align(sequenceA, sequenceB):
     """
     Takes two strings and performs Smith-Waterman local alignment
-    Returns an optimal alignment
+    Returns the calculated score matrix
     """
     
     # Pad both sequences with a leading space
@@ -82,7 +90,9 @@ def do_traceback(alignments, sequenceA, sequenceB, rowColumn=None):
     If rowColumn (tuple or array of 2 values) is provided, 
         then the trace will start from that index in the matrix
     
-    :return: A tuple of 3 values (aligned sequence for A, a comparison sequence, and B)
+    :return: A tuple of 3 values (an aligned sequence for A, 
+                                  a comparison sequence, 
+                                  and an aligned sequence for B)
     """
     
     # Pad both sequences with a leading space
@@ -196,28 +206,50 @@ def print_alignments(labels, alignments, originals):
         print ''
         startA += len(subTraceA.replace('-', ''))
         startB += len(subTraceB.replace('-', ''))
-        
-def calculate_empirical_probability(sequenceA, sequenceB):
-    ## TODO
-    pass
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-            description='Performs Smith-Waterman local alignment on sequences found in two files')
-    parser.add_argument('sequenceA', type=str)
-    parser.add_argument('sequenceB', type=str)
-    parser.add_argument('--verbose', action='store_true')
-    args = parser.parse_args()
-
-    # Read the two sequences in as strings
-    with open(args.sequenceA) as f:
-        sequenceA = f.read().strip()
-    with open(args.sequenceB) as f:
-        sequenceB = f.read().strip()
     
+def shuffle_string(text):
+    """
+    Explicitly implements shuffle to match assignment specs
+    Normally, this would be sufficient:
+        ''.join(random.shuffle(list(text)))
+    """
+    
+    text = list(text)
+    for i in range(len(text)):
+        randIndex = random.randint(i, len(text) - 1)
+        temp = text[i]
+        text[i] = text[randIndex]
+        text[randIndex] = temp
+    return ''.join(text)
+        
+def calculate_empirical_probability(sequenceA, sequenceB, optimal, num, isVerbose=False):
+    """
+    Aligns sequenceA to some number of random permutations of sequenceB
+    """
+    
+    betterCount = 0
+    for i in range(num):
+        permutation = shuffle_string(sequenceB)
+        scores = do_align(sequenceA, permutation)
+        best = numpy.amax(scores)
+        if isVerbose:
+            print "Permutation %d score: %d" % (i, best)
+        if best >= optimal:
+            betterCount += 1
+    
+    if num > 0:
+        return float(betterCount) / num
+    return float(betterCount)
+
+def process_fasta(text):
+    """Removes the first line and removes newlines"""
+    lines = text.split('\n')
+    return ''.join(lines[1:])
+    
+def do_main(sequenceA, sequenceB, labelA, labelB, isVerbose=False, num=0):
     # Print the score matrix
     scores = do_align(sequenceA, sequenceB)
-    if (args.verbose):
+    if isVerbose:
         print "Score matrix:"
         print scores
         print ''
@@ -225,7 +257,36 @@ if __name__ == "__main__":
     # Print the alignments
     alignments = do_traceback(scores, sequenceA, sequenceB)
     print "Alignment:"
-    print_alignments((args.sequenceA, args.sequenceB), alignments, (sequenceA, sequenceB))
+    print_alignments((labelA, labelB), alignments, (sequenceA, sequenceB))
     
     # Print the optimal score
-    print "Optimal score: %d\n" % numpy.amax(scores)
+    optimal = numpy.amax(scores)
+    print "Optimal score: %d\n" % optimal
+    
+    # Calculate the empirical probability
+    if num > 0:
+        probability = calculate_empirical_probability(sequenceA, sequenceB, optimal, num, isVerbose)
+        print "Empirical probability: %f\n" % probability
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+            description='Performs Smith-Waterman local alignment on sequences found in two files')
+    parser.add_argument('sequenceA', type=str)
+    parser.add_argument('sequenceB', type=str)
+    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('-n', type=int, default=0)
+    args = parser.parse_args()
+
+    # Read the two sequences in as strings
+    with open(args.sequenceA) as f:
+        sequenceA = f.read().strip()
+    with open(args.sequenceB) as f:
+        sequenceB = f.read().strip()
+        
+    # Handle FASTA files
+    if os.path.splitext(args.sequenceA)[1] == FASTA:
+        sequenceA = process_fasta(sequenceA)
+    if os.path.splitext(args.sequenceB)[1] == FASTA:
+        sequenceB = process_fasta(sequenceB)
+    
+    do_main(sequenceA, sequenceB, args.sequenceA, args.sequenceB, args.verbose, args.n)
