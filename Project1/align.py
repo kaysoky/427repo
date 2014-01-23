@@ -193,17 +193,20 @@ def print_alignments(labels, alignments, originals):
         print "%*s: %*s %s" % (LABEL_LENGTH, labelA, LABEL_LENGTH, str(startA).center(LABEL_LENGTH, ' '), subTraceA)
         print "%*s %s" % (LABEL_LENGTH * 2 + 2, '', middle[i:(i + SEQUENCE_FRAGMENT)])
         print "%*s: %*s %s" % (LABEL_LENGTH, labelB, LABEL_LENGTH, str(startB).center(LABEL_LENGTH, ' '), subTraceB)
+        print ''
         startA += len(subTraceA.replace('-', ''))
         startB += len(subTraceB.replace('-', ''))
         
 def calculate_empirical_probability(sequenceA, sequenceB):
     ## TODO
+    pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
             description='Performs Smith-Waterman local alignment on sequences found in two files')
     parser.add_argument('sequenceA', type=str)
     parser.add_argument('sequenceB', type=str)
+    parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
 
     # Read the two sequences in as strings
@@ -213,14 +216,16 @@ if __name__ == "__main__":
         sequenceB = f.read().strip()
     
     # Print the score matrix
-    alignments = do_align(sequenceA, sequenceB)
-    print "Score matrix:"
-    print alignments
-    
-    # Print the optimal score
-    print "\nOptimal score: %d" % numpy.amax(alignments)
+    scores = do_align(sequenceA, sequenceB)
+    if (args.verbose):
+        print "Score matrix:"
+        print scores
+        print ''
     
     # Print the alignments
-    alignments = do_traceback(alignments, sequenceA, sequenceB)
-    print "\nAlignment:"
+    alignments = do_traceback(scores, sequenceA, sequenceB)
+    print "Alignment:"
     print_alignments((args.sequenceA, args.sequenceB), alignments, (sequenceA, sequenceB))
+    
+    # Print the optimal score
+    print "Optimal score: %d\n" % numpy.amax(scores)
