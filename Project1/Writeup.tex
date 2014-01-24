@@ -5,6 +5,7 @@
 \usepackage{amssymb}
 \usepackage{listings}
 \usepackage{graphicx}
+\usepackage{xcolor}
 
 \begin{document}
     \begin{center}
@@ -25,22 +26,39 @@
     Note: the Numpy Python module is required.
     
 \section{Test Case}
-    The results for comparing ``deadly'' to ``ddgearlyk'' can be found in (``AB.out'')
-    and are included in this write-up for convenience:
+    The results for comparing ``deadly'' to ``ddgearlyk'' can be found in (``AB.out'').
+    Score matrix:
+    \begin{align*}
+        \left[ \begin{array}{*{11}{c}}
+            - & - & d & d & g &  e &  a & r &  l &  y &  k \\
+            - & 0 & 0 & 0 & 0 &  0 &  0 & 0 &  0 &  0 &  0 \\
+            d & 0 & 6 & \color{red} 6 & 2 &  2 &  0 & 0 &  0 &  0 &  0 \\
+            e & 0 & 2 & 8 & \color{red} 4 &  \color{red} 7 &  3 & 0 &  0 &  0 &  1 \\
+            a & 0 & 0 & 4 & 8 &  4 & \color{red} 11 & 7 &  3 &  0 &  0 \\
+            d & 0 & 6 & 6 & 4 & 10 &  7 & \color{red} 9 &  5 &  1 &  0 \\
+            l & 0 & 2 & 2 & 2 &  6 &  9 & 5 & \color{red} 13 &  9 &  5 \\
+            y & 0 & 0 & 0 & 0 &  2 &  5 & 7 &  9 & \color{red} 20 & 16 
+        \end{array} \right]
+    \end{align*}
+    
     \lstinputlisting[basicstyle=\ttfamily]{AB.out}
+    The p-value is calculated with 100 random permutations.  
     
 \section{P15172 versus Q10574 and O95363}
     For the sake of modularity, the empirical probability 
         calculation is done separately from the general protein comparison.
         Hence, the results do overlap somewhat.
-    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Empirical_P15172_Q10574.out}
-    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Empirical_P15172_O95363.out}
+        
+    See ``Empirical\_P15172\_Q10574.out'' and ``Empirical\_P15172\_O95363.out'' for the full set of results.
+    In the case of P15172 and Q10574, the p-value is less than 0.0005, based on 2000 trials.  
+    In the case of P15172 and O95363, a better alignment occurs about half the time.  
+    Also based on 2000 trials.
     
 \section{Protein comparison}
     The results for each protein pair comparison can be found in ``Proteins.out''.
     This is the summary of pair-wise alignment scores:
     
-    \include{Proteins}
+    \input{Proteins}
     
     The raw output is included in this write-up for convenience:
     \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Proteins.out}

@@ -1,5 +1,5 @@
 :: Test case
-python align.py TestA.txt TestB.txt --verbose -n 100 > AB.out
+python align.py TestA.txt TestB.txt -n 100 > AB.out
 
 :: Protein cases
 python compare_proteins.py > Proteins.out
