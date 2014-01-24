@@ -5,5 +5,5 @@ python align.py TestA.txt TestB.txt --verbose -n 100 > AB.out
 python compare_proteins.py > Proteins.out
 
 :: Empirical p-value cases
-python align.py P15172.fasta Q10574.fasta -n 10000 --verbose > Empirical_P15172_Q10574.out
-python align.py P15172.fasta O95363.fasta -n 10000 --verbose > Empirical_P15172_O95363.out
+python align.py P15172.fasta Q10574.fasta -n 2000 --verbose > Empirical_P15172_Q10574.out
+python align.py P15172.fasta O95363.fasta -n 2000 --verbose > Empirical_P15172_O95363.out

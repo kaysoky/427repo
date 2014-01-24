@@ -247,6 +247,14 @@ def process_fasta(text):
     return ''.join(lines[1:])
     
 def do_main(sequenceA, sequenceB, labelA, labelB, isVerbose=False, num=0):
+    """
+    Prints and returns:
+        The score matrix (if verbose)
+        The alignments (tuple of 3 values)
+        The optimal score
+        The empirical probability (if num > 0)
+    """
+    
     # Print the score matrix
     scores = do_align(sequenceA, sequenceB)
     if isVerbose:
@@ -264,9 +272,12 @@ def do_main(sequenceA, sequenceB, labelA, labelB, isVerbose=False, num=0):
     print "Optimal score: %d\n" % optimal
     
     # Calculate the empirical probability
+    probability = None
     if num > 0:
         probability = calculate_empirical_probability(sequenceA, sequenceB, optimal, num, isVerbose)
         print "Empirical probability: %f\n" % probability
+        
+    return (scores, alignments, optimal, probability)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
