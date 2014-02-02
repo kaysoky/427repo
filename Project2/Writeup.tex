@@ -1,0 +1,29 @@
+\documentclass[a4paper, 12pt]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.8}
+
+\begin{document}
+    \begin{center}
+        {\LARGE Project One} \\
+        CSE 427 A \\
+        Joseph Wu \makebox[0pt][l]{{\tiny (0911680)}} \\
+        February 1-6, 2014 \\
+        {\tiny Typeset via \LaTeX}
+    \end{center}
+    
+\section{Build instructions}
+    
+\section{Histogram}
+    The following is the ``histogram'' of open reading frames 
+    that end within the bounds of the annotated genes.  
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Histogram.out}
+    
+    I've also included a graphical histogram. \\
+    Note: A log-scale is used in the plot.
+    \input{Histogram}
+\end{document}
