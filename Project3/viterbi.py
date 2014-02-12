@@ -3,9 +3,15 @@ import os
 import argparse
 import re
 import numpy
+import json
 
 from math import log
 from numpy import zeros
+
+"""
+Output debugging text?
+"""
+VERBOSE = False
 
 """
 File extension that triggers some additional processing
@@ -33,27 +39,12 @@ Convenient collection of all states in the model
 STATES = [STATE_LOW_GC, STATE_HIGH_GC]
 
 """
-Initial emission probability matrix
-This will be updated by any iterative Viterbi training
+Emission probability matrix
 """
-EMISSION_PROBABILITY = {
-    STATE_LOW_GC : {
-        'A' : 0.25,
-        'C' : 0.25,
-        'G' : 0.25,
-        'T' : 0.25
-    },
-    STATE_HIGH_GC : {
-        'A' : 0.20,
-        'C' : 0.30,
-        'G' : 0.30,
-        'T' : 0.20
-    }
-}
+EMISSION_PROBABILITY = {}
 
 """
 Initial belief of state
-This remains constant
 """
 INITIAL_STATE_PROBABILITY = {
     STATE_LOW_GC : 0.9999,
@@ -61,19 +52,9 @@ INITIAL_STATE_PROBABILITY = {
 }
 
 """
-Initial transition probability matrix
-This will be updated by any iterative Viterbi training
+Transition probability matrix
 """
-TRANSITION_PROBABILITY = {
-    STATE_LOW_GC : {
-        STATE_LOW_GC : 0.9999,
-        STATE_HIGH_GC: 0.0001
-    },
-    STATE_HIGH_GC : {
-        STATE_LOW_GC : 0.01,
-        STATE_HIGH_GC: 0.99
-    }
-}
+TRANSITION_PROBABILITY = {}
 
 def process_fasta(text):
     """
@@ -89,7 +70,7 @@ def process_fasta(text):
     text = text.upper()
     return re.sub(r'[^ACGT]', 'T', text)
 
-def run_viterbi(sequence, verbose=False):
+def run_viterbi(sequence):
     """
     Runs the Viterbi algorithm on the given sequence
         using the global probability matrices
@@ -100,12 +81,12 @@ def run_viterbi(sequence, verbose=False):
     """
 
     # Initialize space to hold the calculated Viterbi probabilities
-    max_log_probabilities = zeros((len(STATES), len(sequence)))
+    max_log_probabilities = zeros(len(STATES))
     previous_state        = zeros((len(STATES), len(sequence)))
     #Note: The first column of 'previous_state' is meaningless
 
     # Fill in the start state probability
-    max_log_probabilities[:, 0] = [
+    max_log_probabilities[:] = [
         log(INITIAL_STATE_PROBABILITY[STATE_LOW_GC] * EMISSION_PROBABILITY[STATE_LOW_GC][sequence[0]]),
         log(INITIAL_STATE_PROBABILITY[STATE_HIGH_GC] * EMISSION_PROBABILITY[STATE_HIGH_GC][sequence[0]])
     ]
@@ -115,36 +96,27 @@ def run_viterbi(sequence, verbose=False):
     for index in range(1, len(sequence)):
         # Calculate the len(STATES) ** 2 number of probabilities
         # Holds the probability[End state, Start state]
-        probabilities[:,:] = [
-            [
-                max_log_probabilities[STATE_LOW_GC, index - 1]
-                    + log(TRANSITION_PROBABILITY[STATE_LOW_GC][STATE_LOW_GC]
-                        * EMISSION_PROBABILITY[STATE_LOW_GC][sequence[index]]),
-                max_log_probabilities[STATE_HIGH_GC, index - 1]
-                    + log(TRANSITION_PROBABILITY[STATE_HIGH_GC][STATE_LOW_GC]
-                        * EMISSION_PROBABILITY[STATE_LOW_GC][sequence[index]]),
-            ], [
-                max_log_probabilities[STATE_LOW_GC, index - 1]
-                    + log(TRANSITION_PROBABILITY[STATE_LOW_GC][STATE_HIGH_GC]
-                        * EMISSION_PROBABILITY[STATE_HIGH_GC][sequence[index]]), 
-                max_log_probabilities[STATE_HIGH_GC, index - 1]
-                    + log(TRANSITION_PROBABILITY[STATE_HIGH_GC][STATE_HIGH_GC]
-                        * EMISSION_PROBABILITY[STATE_HIGH_GC][sequence[index]])
-            ]
-        ]
+        for endState in STATES:
+            for startState in STATES:
+                probabilities[endState, startState] = \
+                    max_log_probabilities[startState] \
+                    + log(TRANSITION_PROBABILITY[startState][endState] \
+                        * EMISSION_PROBABILITY[endState][sequence[index]])
 
         # Keep the maximums
-        max_log_probabilities[:, index] = numpy.max(probabilities, 1)
+        max_log_probabilities[:] = numpy.max(probabilities, 1)
         previous_state[:, index] = numpy.argmax(probabilities, 1)
-        if verbose and index % 1000 == 0:
-            print index, sequence[index], previous_state[:, index], max_log_probabilities[:, index]
+        
+        if VERBOSE and index % 10000 == 0:
+            # Print a status line
+            print index, sequence[index], previous_state[:, index], max_log_probabilities
 
     # Back-trace to find all the predicted states
     # First initialize the space required
     viterbi_path = zeros(len(sequence))
 
     # Fill in the last value
-    viterbi_path[len(sequence) - 1] = numpy.argmax(max_log_probabilities[:, len(sequence) - 1])
+    viterbi_path[len(sequence) - 1] = numpy.argmax(max_log_probabilities)
 
     # Back-fill in the remainder of the path
     for index in range(len(sequence) - 2, -1, -1):
@@ -168,14 +140,25 @@ def run_viterbi(sequence, verbose=False):
     for state in STATES:
         results[state] = filter(lambda x: viterbi_path[x[0]] == state, thresholds)
         
-    return results, numpy.max(max_log_probabilities[:, len(sequence) - 1])
+    return results, numpy.max(max_log_probabilities)
+    
+def run_training(viterbi):
+    """
+    Takes the first output result of running the Viterbi algorithm
+    And calculates a new emission and transition probability matrix
+    """
+    
+    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-            description='TODO')
+            description='Runs the Viterbi algorithm on the given sequence, looking for areas of high GC content')
     parser.add_argument('sequence', type=str)
+    parser.add_argument('emission', type=str)
+    parser.add_argument('transition', type=str)
     parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
+    VERBOSE = args.verbose
 
     # Read the sequence in as a string
     with open(args.sequence) as f:
@@ -187,12 +170,37 @@ if __name__ == '__main__':
     else:
         print 'Unknown sequence file format'
         exit()
+        
+    # Load the the emission probability matrix
+    with open(args.emission) as f:
+        emission = json.load(f)
+        
+        # JSON doesn't support integer keys
+        # But the states are defined as integers
+        # So convert it here
+        for key in emission.keys():
+            EMISSION_PROBABILITY[int(key)] = emission[key]
+            
+    # Load the the transition probability matrix
+    with open(args.transition) as f:
+        transition = json.load(f)
+        
+        # Again, JSON doesn't support integer keys
+        for key in transition.keys():
+            subTransition = {}
+            for subkey in transition[key]:
+                subTransition[int(subkey)] = transition[key][subkey]
+            TRANSITION_PROBABILITY[int(key)] = subTransition
 
-    results, max_prob = run_viterbi(sequence, args.verbose)
+    # Run the Viterbi algorithm
+    results, max_prob = run_viterbi(sequence)
+    
+    # Print the results
     print 'Viterbi Probability: %f' % max_prob
-    for state in results.keys():
-        print "-----"
-        print state
-        print "-----"
-        for item in results[state]:
-            print item
+    print 'High GC content hits (one-based index):'
+    print '     Start | End '
+    for item in results[STATE_HIGH_GC]:
+        print '%*d | %d' % (10, item[0] + 1, item[1] + 1)
+        
+    ##TODO: Train and output the new emission matrix
+    run_training(results)
