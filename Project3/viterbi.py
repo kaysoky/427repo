@@ -106,7 +106,7 @@ def run_viterbi(sequence):
         # Keep the maximums
         max_log_probabilities[:] = numpy.max(probabilities, 1)
         previous_state[:, index] = numpy.argmax(probabilities, 1)
-        
+
         if VERBOSE and index % 10000 == 0:
             # Print a status line
             print index, sequence[index], previous_state[:, index], max_log_probabilities
@@ -124,38 +124,71 @@ def run_viterbi(sequence):
 
     # Yay, now I can use functional programming to do the remaining transformation
     # Namely, the transformation of the path to the return value
-    # First, find all the indices where there is a state transition 
+    # First, find all the indices where there is a state transition
     #   This will be the inclusive end of all the contiguous state chunks
-    thresholds = filter(lambda x: viterbi_path[x] != viterbi_path[x + 1], 
+    thresholds = filter(lambda x: viterbi_path[x] != viterbi_path[x + 1],
                         range(0, len(viterbi_path) - 1))
     # Pretend that there's also a state transition at the end
     thresholds.append(len(viterbi_path) - 1)
-    
+
     # Now transform these indices into tuples of (inclusive start, exclusive end)
-    thresholds = map(lambda x:(0 if x <= 0 else (thresholds[x - 1] + 1), thresholds[x] + 1), 
+    thresholds = map(lambda x:(0 if x <= 0 else (thresholds[x - 1] + 1), thresholds[x] + 1),
                      range(len(thresholds)))
-     
+
     # And filter them into the proper buckets
     results = {}
     for state in STATES:
         results[state] = filter(lambda x: viterbi_path[x[0]] == state, thresholds)
-        
+
     return results, numpy.max(max_log_probabilities)
-    
-def run_training(viterbi):
+
+def run_training(sequence, viterbi):
     """
     Takes the first output result of running the Viterbi algorithm
     And calculates a new emission and transition probability matrix
+        Note: this replaces the global probability matrices
     """
+
+    ## Calculate the transition probabilities ##
+    # First zero-out the matrix
+    TRANSITION_PROBABILITY = {}
+    for start in STATES:
+        TRANSITION_PROBABILITY[start] = {}
+        for end in STATES:
+            TRANSITION_PROBABILITY[start][end] = 0
+
+    # Next, let's unwrap the results
+    #   from: {state: (start, end), ...}
+    #     to: [(start, end, state), ...]
+    unwrapped = []
+    for state in STATES:
+        unwrapped.extend([(item[0], item[1], state) for item in viterbi[state]])
+
+    # Sort the unwrapped results in ascending order
+    unwrapped.sort(lambda x: x[0])
+
+    ##TODO: Add up transition counts
+    for index in range(len(unwrapped)):
+
+    # Normalize the transition counts to probabilities
+    for start in STATES:
+        total = 0.0
+        for end in STATES:
+            total += TRANSITION_PROBABILITY[start][end]
+        for end in STATES:
+            TRANSITION_PROBABILITY[start][end] /= total
+
+    ## Calculate the emission probabilities ##
     
-    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='Runs the Viterbi algorithm on the given sequence, looking for areas of high GC content')
     parser.add_argument('sequence', type=str)
-    parser.add_argument('emission', type=str)
-    parser.add_argument('transition', type=str)
+    parser.add_argument('--inE', type=str, help='JSON matrix used to initialize the emission probability matrix')
+    parser.add_argument('--inT', type=str, help='JSON matrix used to initialize the transition probability matrix')
+    parser.add_argument('--outE', type=str, help='File to save the trained emission probability matrix')
+    parser.add_argument('--outT', type=str, help='File to save the trained transition probability matrix')
     parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
     VERBOSE = args.verbose
@@ -170,21 +203,21 @@ if __name__ == '__main__':
     else:
         print 'Unknown sequence file format'
         exit()
-        
+
     # Load the the emission probability matrix
-    with open(args.emission) as f:
+    with open(args.inE) as f:
         emission = json.load(f)
-        
+
         # JSON doesn't support integer keys
         # But the states are defined as integers
         # So convert it here
         for key in emission.keys():
             EMISSION_PROBABILITY[int(key)] = emission[key]
-            
+
     # Load the the transition probability matrix
-    with open(args.transition) as f:
+    with open(args.inT) as f:
         transition = json.load(f)
-        
+
         # Again, JSON doesn't support integer keys
         for key in transition.keys():
             subTransition = {}
@@ -194,13 +227,19 @@ if __name__ == '__main__':
 
     # Run the Viterbi algorithm
     results, max_prob = run_viterbi(sequence)
-    
+
     # Print the results
     print 'Viterbi Probability: %f' % max_prob
     print 'High GC content hits (one-based index):'
     print '     Start | End '
     for item in results[STATE_HIGH_GC]:
         print '%*d | %d' % (10, item[0] + 1, item[1] + 1)
-        
+
     ##TODO: Train and output the new emission matrix
     run_training(results)
+
+    # Save the trained probabilities
+    with open(args.outE) as f:
+        json.dump(EMISSION_PROBABILITY, f)
+    with open(args.outT) as f:
+        json.dump(TRANSITION_PROBABILITY, f)
