@@ -4,14 +4,10 @@ import argparse
 import re
 import numpy
 import json
+import time
 
 from math import log
 from numpy import zeros
-
-"""
-Output debugging text?
-"""
-VERBOSE = False
 
 """
 File extension that triggers some additional processing
@@ -107,10 +103,6 @@ def run_viterbi(sequence):
         max_log_probabilities[:] = numpy.max(probabilities, 1)
         previous_state[:, index] = numpy.argmax(probabilities, 1)
 
-        if VERBOSE and index % 10000 == 0:
-            # Print a status line
-            print index, sequence[index], previous_state[:, index], max_log_probabilities
-
     # Back-trace to find all the predicted states
     # First initialize the space required
     viterbi_path = zeros(len(sequence))
@@ -142,16 +134,14 @@ def run_viterbi(sequence):
 
     return results, numpy.max(max_log_probabilities)
 
-def run_training(sequence, viterbi):
+def run_transition_training(viterbi):
     """
     Takes the first output result of running the Viterbi algorithm
-    And calculates a new emission and transition probability matrix
+    And calculates a new transition probability matrix
         Note: this replaces the global probability matrices
     """
 
-    ## Calculate the transition probabilities ##
     # First zero-out the matrix
-    TRANSITION_PROBABILITY = {}
     for start in STATES:
         TRANSITION_PROBABILITY[start] = {}
         for end in STATES:
@@ -165,10 +155,19 @@ def run_training(sequence, viterbi):
         unwrapped.extend([(item[0], item[1], state) for item in viterbi[state]])
 
     # Sort the unwrapped results in ascending order
-    unwrapped.sort(lambda x: x[0])
+    unwrapped.sort(key=lambda x: x[0])
 
-    ##TODO: Add up transition counts
+    # Add up transition counts
     for index in range(len(unwrapped)):
+        start = unwrapped[index][2]
+
+        # Add a single transition from one state to another
+        if index < len(unwrapped) - 1:
+            end = unwrapped[index + 1][2]
+            TRANSITION_PROBABILITY[start][end] += 1
+
+        # Add transitions from one state to itself
+        TRANSITION_PROBABILITY[start][start] += unwrapped[index][1] - unwrapped[index][0]
 
     # Normalize the transition counts to probabilities
     for start in STATES:
@@ -178,8 +177,42 @@ def run_training(sequence, viterbi):
         for end in STATES:
             TRANSITION_PROBABILITY[start][end] /= total
 
-    ## Calculate the emission probabilities ##
-    
+def run_emission_training(sequence, viterbi):
+    """
+    Takes the first output result of running the Viterbi algorithm
+        And the sequence used to calculate the output
+    And calculates a new emission probability matrix
+        Note: this replaces the global probability matrices
+    """
+
+    # First zero-out the matrix
+    for start in STATES:
+        EMISSION_PROBABILITY[start] = {}
+        for emit in NUCLEOTIDES:
+            EMISSION_PROBABILITY[start][emit] = 0
+
+    # Add up the emission counts in each state
+    for state in viterbi:
+        # Concatenate each subsequence together
+        subsequence = []
+        for result in viterbi[state]:
+            subsequence.append(sequence[result[0]:result[1]])
+        subsequence = ''.join(subsequence)
+
+        # Count the number of each emission
+        for emit in NUCLEOTIDES:
+            EMISSION_PROBABILITY[state][emit] += reduce(
+                    lambda x, y: x + (1 if subsequence[y] == emit else 0),
+                    range(len(subsequence)), 
+                    0) # Initializer, necessary otherwise the first letter will be ignored
+
+    # Normalize the transition counts to probabilities
+    for start in STATES:
+        total = 0.0
+        for emit in NUCLEOTIDES:
+            total += EMISSION_PROBABILITY[start][emit]
+        for emit in NUCLEOTIDES:
+            EMISSION_PROBABILITY[start][emit] /= total
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -187,11 +220,13 @@ if __name__ == '__main__':
     parser.add_argument('sequence', type=str)
     parser.add_argument('--inE', type=str, help='JSON matrix used to initialize the emission probability matrix')
     parser.add_argument('--inT', type=str, help='JSON matrix used to initialize the transition probability matrix')
-    parser.add_argument('--outE', type=str, help='File to save the trained emission probability matrix')
-    parser.add_argument('--outT', type=str, help='File to save the trained transition probability matrix')
-    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--outE', type=str, required=False, 
+        help='File to save the trained emission probability matrix')
+    parser.add_argument('--outT', type=str, required=False, 
+        help='File to save the trained transition probability matrix')
+    parser.add_argument('--verbose', action='store_true', help='Print every high GC hit?')
+    parser.add_argument('--time', action='store_true', help='Time the algorithm?')
     args = parser.parse_args()
-    VERBOSE = args.verbose
 
     # Read the sequence in as a string
     with open(args.sequence) as f:
@@ -225,21 +260,36 @@ if __name__ == '__main__':
                 subTransition[int(subkey)] = transition[key][subkey]
             TRANSITION_PROBABILITY[int(key)] = subTransition
 
+    # If specified, time the iteration
+    if args.time:
+        startTime = time.clock()
+        
     # Run the Viterbi algorithm
     results, max_prob = run_viterbi(sequence)
 
     # Print the results
-    print 'Viterbi Probability: %f' % max_prob
-    print 'High GC content hits (one-based index):'
-    print '     Start | End '
-    for item in results[STATE_HIGH_GC]:
-        print '%*d | %d' % (10, item[0] + 1, item[1] + 1)
+    print 'Viterbi log probability: %f' % max_prob
+    print 'Number of high GC content hits: %d' % len(results[STATE_HIGH_GC])
+    if args.verbose:
+        print 'High GC content hits (one-based index):'
+        print '     Start | End '
+        for item in results[STATE_HIGH_GC]:
+            print '%*d | %d' % (10, item[0] + 1, item[1] + 1)
 
-    ##TODO: Train and output the new emission matrix
-    run_training(results)
-
-    # Save the trained probabilities
-    with open(args.outE) as f:
-        json.dump(EMISSION_PROBABILITY, f)
-    with open(args.outT) as f:
-        json.dump(TRANSITION_PROBABILITY, f)
+    # Train the new emission matrix
+    if args.outE is not None:
+        run_emission_training(sequence, results)
+        with open(args.outE, 'w') as f:
+            json.dump(EMISSION_PROBABILITY, f, indent=2)
+            
+    # Train the new transition matrix
+    if args.outT is not None:
+        run_transition_training(results)
+        with open(args.outT, 'w') as f:
+            json.dump(TRANSITION_PROBABILITY, f, indent=2)
+    
+    # If specified, print the time elapsed
+    if args.time:
+        elapsed = (time.clock() - startTime)
+        print 'Iteration time %f seconds' % elapsed
+    

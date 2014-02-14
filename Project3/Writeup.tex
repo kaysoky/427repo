@@ -14,11 +14,62 @@
         {\tiny Typeset via \LaTeX}
     \end{center}
 
-\section{Build instructions}
+\section{Build Instructions}
     A single iteration of the program is run with: \\
-    \texttt{python viterbi.py Test.fna --inE Emission00.json --inT Transition00.json --outE Emission01.json --outT Transition01.json}
+    \texttt{python viterbi.py TestViterbi.fna --inE Emission00.json --inT Transition00.json --outE Emission01.json --outT Transition01.json} \\
+    
+    \noindent Multiple iterations are comprised of using the output from the previous call: \\
+    \texttt{python viterbi.py TestViterbi.fna --inE Emission01.json --inT Transition01.json --outE Emission02.json --outT Transition02.json} \\
+    \texttt{python viterbi.py TestViterbi.fna --inE Emission02.json --inT Transition02.json --outE Emission03.json --outT Transition03.json} \\
+    \texttt{...} \\
+    
+    \noindent The script used to run the 10 iterations is included as ``Iterate10.bat''.
+    
+\section{(Super slow) Computer Specs}
+    1.3 GHz dual-core (my implementation is single threaded) \\
+    800 MHz front side bus \\
+    4 GB RAM \\
+    Standard hard disk (not solid state)
+    
+\section{Format of iterations}
+    For all iterations, I have included the parameters in JSON format.
+    The emission probability matrix contains one upper level key to represent the state
+        and a lower level key to represent the emitted letter.
+    The transition probability matrix contains one upper level key to represent the starting state
+        and a lower level key to present to the following state.  \\
+    The low-GC state is state ``0''
+        and the high-GC state is state ``1''.  
 
-\section{TODO}
-    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{TODO.out}
-    \input{TODO}
+% Imports the a single iteration of input/output
+\newcommand{\IncludeOutput}[1]{
+    \subsection{Iteration #1}
+    Emission Probabilities: \\
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Emission#1.json}
+    Transition Probabilities: \\
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Transition#1.json}
+    Viterbi output: \\
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Results#1.out}
+}
+\section{Iterations}
+    \IncludeOutput{00}
+    \IncludeOutput{01}
+    \IncludeOutput{02}
+    \IncludeOutput{03}
+    \IncludeOutput{04}
+    \IncludeOutput{05}
+    \IncludeOutput{06}
+    \IncludeOutput{07}
+    \IncludeOutput{08}
+    \IncludeOutput{09}
+    
+\section{Comments}
+    Since I was programming on a relatively slow computer (see computer specs), 
+        I tested my algorithm with a much smaller file (1500 bases long).  
+    This file was made by taking 1000 bases from the ``NC\_000909.fna'' file
+        and inserting 500 bases worth of high GC content in the middle.
+    (Comments are also included in the test file.)
+    Originally, the middle section only had G's and C's, 
+        but since that resulted in a 0 probability of A's and T's, 
+        it wouldn't fit into log-space. 
+    I had to pad the middle with a few A's and T's to proceed. 
 \end{document}
