@@ -87,21 +87,24 @@ def run_viterbi(sequence):
         log(INITIAL_STATE_PROBABILITY[STATE_HIGH_GC] * EMISSION_PROBABILITY[STATE_HIGH_GC][sequence[0]])
     ]
 
-    # Fill in the remainder of the probabilities
+    # Define how to step through the Viterbi algorithm and fill in the appropriate values
     probabilities = zeros((len(STATES), len(STATES)));
-    for index in range(1, len(sequence)):
+    def viterbi_step(previous, index):
         # Calculate the len(STATES) ** 2 number of probabilities
         # Holds the probability[End state, Start state]
         for endState in STATES:
             for startState in STATES:
                 probabilities[endState, startState] = \
-                    max_log_probabilities[startState] \
+                    previous[startState] \
                     + log(TRANSITION_PROBABILITY[startState][endState] \
                         * EMISSION_PROBABILITY[endState][sequence[index]])
 
         # Keep the maximums
-        max_log_probabilities[:] = numpy.max(probabilities, 1)
         previous_state[:, index] = numpy.argmax(probabilities, 1)
+        return numpy.max(probabilities, 1)
+
+    # Fill in the remainder of the probabilities
+    max_log_probabilities[:] = reduce(viterbi_step, range(1, len(sequence)), max_log_probabilities)
 
     # Back-trace to find all the predicted states
     # First initialize the space required
@@ -110,9 +113,13 @@ def run_viterbi(sequence):
     # Fill in the last value
     viterbi_path[len(sequence) - 1] = numpy.argmax(max_log_probabilities)
 
+    # Define how to step back through the states and determine the Viterbi path
+    def viterbi_backstep(previous, index):
+        viterbi_path[index] = previous_state[previous, index + 1]
+        return viterbi_path[index]
+
     # Back-fill in the remainder of the path
-    for index in range(len(sequence) - 2, -1, -1):
-        viterbi_path[index] = previous_state[viterbi_path[index + 1], index + 1]
+    reduce(viterbi_backstep, range(len(sequence) - 2, -1, -1), viterbi_path[len(sequence) - 1])
 
     # Yay, now I can use functional programming to do the remaining transformation
     # Namely, the transformation of the path to the return value
@@ -203,7 +210,7 @@ def run_emission_training(sequence, viterbi):
         for emit in NUCLEOTIDES:
             EMISSION_PROBABILITY[state][emit] += reduce(
                     lambda x, y: x + (1 if subsequence[y] == emit else 0),
-                    range(len(subsequence)), 
+                    range(len(subsequence)),
                     0) # Initializer, necessary otherwise the first letter will be ignored
 
     # Normalize the transition counts to probabilities
@@ -220,9 +227,9 @@ if __name__ == '__main__':
     parser.add_argument('sequence', type=str)
     parser.add_argument('--inE', type=str, help='JSON matrix used to initialize the emission probability matrix')
     parser.add_argument('--inT', type=str, help='JSON matrix used to initialize the transition probability matrix')
-    parser.add_argument('--outE', type=str, required=False, 
+    parser.add_argument('--outE', type=str, required=False,
         help='File to save the trained emission probability matrix')
-    parser.add_argument('--outT', type=str, required=False, 
+    parser.add_argument('--outT', type=str, required=False,
         help='File to save the trained transition probability matrix')
     parser.add_argument('--verbose', action='store_true', help='Print every high GC hit?')
     parser.add_argument('--time', action='store_true', help='Time the algorithm?')
@@ -263,7 +270,7 @@ if __name__ == '__main__':
     # If specified, time the iteration
     if args.time:
         startTime = time.clock()
-        
+
     # Run the Viterbi algorithm
     results, max_prob = run_viterbi(sequence)
 
@@ -281,15 +288,15 @@ if __name__ == '__main__':
         run_emission_training(sequence, results)
         with open(args.outE, 'w') as f:
             json.dump(EMISSION_PROBABILITY, f, indent=2)
-            
+
     # Train the new transition matrix
     if args.outT is not None:
         run_transition_training(results)
         with open(args.outT, 'w') as f:
             json.dump(TRANSITION_PROBABILITY, f, indent=2)
-    
+
     # If specified, print the time elapsed
     if args.time:
         elapsed = (time.clock() - startTime)
         print 'Iteration time %f seconds' % elapsed
-    
+
