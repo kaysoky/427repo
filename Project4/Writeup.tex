@@ -1,0 +1,36 @@
+\documentclass[a4paper, 12pt]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+
+\begin{document}
+    \begin{center}
+        {\LARGE Project Four} \\
+        CSE 427 A \\
+        Joseph Wu \makebox[0pt][l]{{\tiny (0911680)}} \\
+        March 6-13, 2014 \\
+        {\tiny Typeset via \LaTeX}
+    \end{center}
+    
+\section{Candidate Selection (and usage instructions)}
+    Since we are working with files that do not fit in memory, 
+        I used the ``generator'' pattern in Python to keep memory utilization at a minimum.
+    I planned to first parse the SAM file and filter out the most obvious non-candidates:
+        perfect matches and sequences without a significant poly-A tail.
+    I would then output that result in a JSON file, 
+        which could be piped back into the same program for further filtering.
+    The following command was run for this step: \\
+    \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --verbose all.sam \\
+            01-MMM3-MPA3.json | tee 01-MMM3-MPA3.out}
+    
+    With the following output: \\
+    % \lstinputlisting[basicstyle=\small\ttfamily]{01-MMM3-MPA3.out}
+
+\section{(Super slow) Computer Specs}
+    1.3 GHz dual-core (single threaded program) \\
+    800 MHz front side bus \\
+    4 GB RAM \\
+    Standard hard disk (not solid state)
+\end{document}

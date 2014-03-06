@@ -3,6 +3,7 @@ import os
 import argparse
 import re
 import json
+import time
 
 """
 File extension indicating that an input file should be parsed as a SAM file
@@ -127,6 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('file', type=str, help='A SAM or processed SAM file')
     parser.add_argument('output', type=str, help='Output JSON file')
     parser.add_argument('--limit', type=int, required=False, help='How many lines of input should be read?')
+    parser.add_argument('--verbose', action='store_true', help='Should progress and summary statistics be printed?')
 
     # Filtering parameters
     parser.add_argument('--matches_only', action='store_true', help='Filters out data that does not match map to the reference genome')
@@ -136,6 +138,11 @@ if __name__ == '__main__':
     parser.add_argument('--max_non_tail_mismatches', type=int, help='Filters out data which contains more than (exclusive) the given number of mismatches in the non-tail region')
 
     args = parser.parse_args()
+    
+    # Keep track of how much time this filter requires
+    startTime = 0
+    if args.verbose:
+        startTime = time.clock()
 
     # Handle input parsing
     fileext = os.path.splitext(args.file)[1]
@@ -159,6 +166,7 @@ if __name__ == '__main__':
     # Since the input file might not fit in memory
     # Use a generator to read in and process the file line by line
     counter = 0
+    outputLines = 0
     for data in iterator:
         # Limit the number of input lines read (for debugging purposes)
         if args.limit is not None and counter >= args.limit:
@@ -216,7 +224,16 @@ if __name__ == '__main__':
         # Data passed the filter, so save it
         output.write(json.dumps(data))
         output.write(',\n')
+        outputLines += 1
 
     # Close the JSON array with an empty item
     output.write('{}]')
     output.close()
+    
+    if args.verbose:
+        # Print how long the filter took
+        elapsed = (time.clock() - startTime)
+        print 'Filter finished in %f seconds' % elapsed
+        
+        # Print summary statistics about the result of the filter
+        print '%d lines of input -> %d lines of output' % (counter, outputLines)
