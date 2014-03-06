@@ -14,7 +14,13 @@
         {\tiny Typeset via \LaTeX}
     \end{center}
     
-\section{Candidate Selection (and usage instructions)}
+\section{Usage Instructions}
+    For candidate selection, I wrote a script with various parameters to experiment with.  
+    The tool is self-documented sufficiently: \\
+    \texttt{python filter.py -h | tee Usage.out}
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage.out}
+    
+\section{Candidate Selection}
     Since we are working with files that do not fit in memory, 
         I used the ``generator'' pattern in Python to keep memory utilization at a minimum.
     I planned to first parse the SAM file and filter out the most obvious non-candidates:
@@ -25,8 +31,10 @@
     \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --verbose all.sam \\
             01-MMM3-MPA3.json | tee 01-MMM3-MPA3.out}
     
-    With the following output: \\
+    With the following output:
     % \lstinputlisting[basicstyle=\small\ttfamily]{01-MMM3-MPA3.out}
+    
+    
 
 \section{(Super slow) Computer Specs}
     1.3 GHz dual-core (single threaded program) \\

@@ -30,6 +30,8 @@ SAM_PNEXT = 'PNEXT'
 SAM_TLEN  = 'TLEN'
 SAM_SEQ   = 'SEQ'
 SAM_QUAL  = 'QUAL'
+
+# Optional fields
 SAM_A_SCR = 'AS:i:'
 SAM_NUMMM = 'NM:i:'
 SAM_MSMAT = 'MD:Z:'
