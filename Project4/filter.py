@@ -4,6 +4,7 @@ import argparse
 import re
 import json
 import time
+import numpy
 
 """
 File extension indicating that an input file should be parsed as a SAM file
@@ -14,6 +15,54 @@ SAM_FILE = '.sam'
 File extension indicating that an input file should be parsed as a JSON file
 """
 JSON_FILE = '.json'
+
+"""
+Expected length of sequences within the SAM file
+"""
+SEQUENCE_LENGTH = 75
+
+"""
+Motif length the Weight Matrix Model will represent
+"""
+WMM_LENGTH = 6
+
+"""
+IUPAC nucleotide base notation
+"""
+NUCLEOTIDES = {
+    'A': 0, 
+    'C': 1, 
+    'G': 2, 
+    'T': 3,
+    'R': 4, # A or G
+    'Y': 5, # C or T
+    'S': 6, # G or C
+    'W': 7, # A or T
+    'K': 8, # G or T
+    'M': 9, # A or C
+    'B': 10, # C or G or T
+    'D': 11, # A or G or T
+    'H': 12, # A or C or T
+    'V': 13, # A or C or G
+    'N': 14} # any base
+    
+"""
+Used to transform a 15x75 matrix of bases to location in sequence
+  To a 15x6 matrix of bases in a WMM
+"""
+WMM_BASE_COUNT_AGGREGATOR = numpy.ones((SEQUENCE_LENGTH, WMM_LENGTH))
+WMM_BASE_COUNT_AGGREGATOR[0:WMM_LENGTH, 0:WMM_LENGTH] += numpy.tril(numpy.ones((WMM_LENGTH, WMM_LENGTH))) - 1
+WMM_BASE_COUNT_AGGREGATOR[(SEQUENCE_LENGTH - WMM_LENGTH):, 0:WMM_LENGTH] += numpy.triu(numpy.ones((WMM_LENGTH, WMM_LENGTH))) - 1
+    
+"""
+Used to reduce the number of bases from 15 to 4 in a 15x6 WMM
+"""
+WMM_STANDARD_COUNT = numpy.array([
+    [1, 0, 0, 0, 0.5, 0  , 0  , 0.5, 0  , 0.5, 0   , 0.33, 0.33, 0.33, 0.25],
+    [0, 1, 0, 0, 0  , 0.5, 0.5, 0  , 0  , 0.5, 0.33, 0   , 0.33, 0.33, 0.25],
+    [0, 0, 1, 0, 0.5, 0  , 0.5, 0  , 0.5, 0  , 0.33, 0.33, 0   , 0.33, 0.25],
+    [0, 0, 0, 1, 0  , 0.5, 0  , 0.5, 0.5, 0  , 0.33, 0.33, 0.33, 0   , 0.25]
+])
 
 #####################
 ## SAM File Fields ##
@@ -53,7 +102,7 @@ Usage: POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
 Finds the poly-A tail of the given sequence
 """
 POLY_A_TAIL_SEARCH_REGEX = re.compile(r"(A+)$")
-POLY_T_TAIL_SEARCH_REGEX = re.compile(r"(T+)$")
+POLY_T_TAIL_SEARCH_REGEX = re.compile(r"^(T+)")
 
 """
 Usage: MISMATCH_SEARCH_REGEX.findall(data[SAM_MSMAT])
@@ -138,6 +187,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_align_score', type=int, help='Filters out data with an alignment score greater than (exclusive) the given value; Note: scores are negative')
     parser.add_argument('--min_polyAlen', type=int, help='Filters out data with a trailing poly-A tail of less than (exclusive) the given length')
     parser.add_argument('--max_non_tail_mismatches', type=int, help='Filters out data which contains more than (exclusive) the given number of mismatches in the non-tail region')
+    parser.add_argument('--compute_background', type=str, help='For all data not passing the filter, adds the data to a 6mer weight matrix model of the background')
 
     args = parser.parse_args()
     
@@ -174,6 +224,22 @@ if __name__ == '__main__':
         if args.limit is not None and counter >= args.limit:
             break
         counter += 1
+        
+        backgroundDelta = None
+        if args.compute_background:
+            # Flatten the sequence into a 15x75 matrix
+            dataSum = numpy.zeros((len(NUCLEOTIDES), len(data[SAM_SEQ])))
+            for index in range(len(data[SAM_SEQ])):
+                base = data[SAM_SEQ][index]
+                dataSum[NUCLEOTIDES[base], index] = 1
+                
+            # Aggregate each base into the appropriate bucket in the Weight Matrix
+            backgroundDelta = numpy.dot(dataSum, WMM_BASE_COUNT_AGGREGATOR)
+            
+            # Remove non ACGT bases
+            backgroundDelta = numpy.dot(WMM_STANDARD_COUNT, backgroundDelta)
+            
+            ##Save the delta
 
         # Remove all sequences that are unmapped
         if args.matches_only:
@@ -227,6 +293,10 @@ if __name__ == '__main__':
         output.write(json.dumps(data))
         output.write(',\n')
         outputLines += 1
+        
+        ## Data passed the filter, so exclude it from the background
+        if args.compute_background:
+            pass
 
     # Close the JSON array with an empty item
     output.write('{}]')
