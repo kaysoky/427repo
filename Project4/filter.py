@@ -47,7 +47,7 @@ NUCLEOTIDES = {
     'N': 14} # any base
     
 """
-Used to transform a 15x75 matrix of bases to location in sequence
+Used to transform a 15x75 matrix of bases type x location in sequence
   To a 15x6 matrix of bases in a WMM
 """
 WMM_BASE_COUNT_AGGREGATOR = numpy.ones((SEQUENCE_LENGTH, WMM_LENGTH))
@@ -100,9 +100,10 @@ SAM_REV_COMPLEMENT_FLAG_MASK = 0x10
 """
 Usage: POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
 Finds the poly-A tail of the given sequence
+Note: This is extremely lenient and counts uncertain A's as part of the tail
 """
-POLY_A_TAIL_SEARCH_REGEX = re.compile(r"(A+)$")
-POLY_T_TAIL_SEARCH_REGEX = re.compile(r"^(T+)")
+POLY_A_TAIL_SEARCH_REGEX = re.compile(r"([ARWMDHVN]+)$")
+POLY_T_TAIL_SEARCH_REGEX = re.compile(r"^([TYWKBDHN]+)")
 
 """
 Usage: MISMATCH_SEARCH_REGEX.findall(data[SAM_MSMAT])
@@ -164,20 +165,18 @@ def sam_generator(filename):
 def json_generator(filename):
     """
     Opens a processed SAM file that was exported in JSON
-    And iterates over the array, returning each value
+    And iterates over the values and returns the decoded JSON
     """
 
     with open(filename, 'r') as file:
-        data = json.load(file)
-        for item in data:
-            if item: # Not empty
-                yield item
+        for line in file:
+            yield json.loads(line)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='Opens a SAM file or a processed SAM file (exported in JSON) and performs the specified set of filtering operations')
-    parser.add_argument('file', type=str, help='A SAM or processed SAM file')
-    parser.add_argument('output', type=str, help='Output JSON file')
+    parser.add_argument('file', type=str, help='A SAM or previously filtered SAM file')
+    parser.add_argument('output', type=str, help='Output JSON file.  Note: every line of the file will contain a JSON string')
     parser.add_argument('--limit', type=int, required=False, help='How many lines of input should be read?')
     parser.add_argument('--verbose', action='store_true', help='Should progress and summary statistics be printed?')
 
@@ -213,12 +212,12 @@ if __name__ == '__main__':
         print 'Only JSON file format is acceptable for output'
         exit()
     output = open(args.output, 'w')
-    output.write('[\n')
 
     # Since the input file might not fit in memory
     # Use a generator to read in and process the file line by line
     counter = 0
     outputLines = 0
+    backgroundModel = numpy.zeros((4, WMM_LENGTH))
     for data in iterator:
         # Limit the number of input lines read (for debugging purposes)
         if args.limit is not None and counter >= args.limit:
@@ -228,8 +227,8 @@ if __name__ == '__main__':
         backgroundDelta = None
         if args.compute_background:
             # Flatten the sequence into a 15x75 matrix
-            dataSum = numpy.zeros((len(NUCLEOTIDES), len(data[SAM_SEQ])))
-            for index in range(len(data[SAM_SEQ])):
+            dataSum = numpy.zeros((len(NUCLEOTIDES), SEQUENCE_LENGTH))
+            for index in range(SEQUENCE_LENGTH):
                 base = data[SAM_SEQ][index]
                 dataSum[NUCLEOTIDES[base], index] = 1
                 
@@ -239,7 +238,8 @@ if __name__ == '__main__':
             # Remove non ACGT bases
             backgroundDelta = numpy.dot(WMM_STANDARD_COUNT, backgroundDelta)
             
-            ##Save the delta
+            # Save the delta
+            backgroundModel += backgroundDelta
 
         # Remove all sequences that are unmapped
         if args.matches_only:
@@ -291,16 +291,20 @@ if __name__ == '__main__':
 
         # Data passed the filter, so save it
         output.write(json.dumps(data))
-        output.write(',\n')
+        output.write('\n')
         outputLines += 1
         
-        ## Data passed the filter, so exclude it from the background
+        # Data passed the filter, so exclude it from the background
         if args.compute_background:
-            pass
+            backgroundModel -= backgroundDelta
 
-    # Close the JSON array with an empty item
-    output.write('{}]')
+    # Close the JSON output file
     output.close()
+    
+    # Save the background model
+    if args.compute_background:
+        with open(args.compute_background, 'w') as f:
+            json.dump(backgroundModel.tolist(), f)
     
     if args.verbose:
         # Print how long the filter took

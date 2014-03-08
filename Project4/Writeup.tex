@@ -26,12 +26,17 @@
     I planned to first parse the SAM file and filter out the most obvious non-candidates:
         near perfect matches (3 or more mismatches) 
         and sequences without a significant poly-A tail (at least 3 A's). 
-    (\textbf{Extra credit:} The poly-A tail filter also includes a poly-T head filter for reverse complements)
+    I made the filter for poly-A tails very lenient, 
+        in that it also counts the letters R, W, M, D, H, V, and N
+        as part of the tail.  
+    These are, as part of IUPAC standard nucleotide notation, possible A's.
+    (\textbf{Extra credit:} The poly-A tail filter also includes a poly-T head filter for reverse complements.)
     I would then output that result in a JSON file, 
         which could be piped back into the same program for further filtering.
+        
     The following command was run for this step: \\
-    \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --verbose all.sam \\
-            00-01-MMM3-MPA3.json | tee 00-01-MMM3-MPA3.out}
+    \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --compute\_background \\
+            00-01-background.json --verbose all.sam 00-01-MMM3-MPA3.json | tee 00-01-MMM3-MPA3.out}
     
     With the following output:
     \lstinputlisting[basicstyle=\small\ttfamily]{00-01-MMM3-MPA3.out}
