@@ -98,6 +98,13 @@ Indicates if the sequence is a reverse complement
 SAM_REV_COMPLEMENT_FLAG_MASK = 0x10
 
 """
+Custom bit mask for the SAM_FLAG parameter
+Indicates if the sequence was a reverse complement 
+  but has been transformed by this filter into a 'ordinary' sequence
+"""
+SAM_TRANSFORMED_REV_COMP_FLAG_MASK = 0x1000
+
+"""
 Usage: POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
 Finds the poly-A tail of the given sequence
 Note: This is extremely lenient and counts uncertain A's as part of the tail
@@ -171,6 +178,28 @@ def json_generator(filename):
     with open(filename, 'r') as file:
         for line in file:
             yield json.loads(line)
+            
+def complement_sequence(sequence):
+    """
+    Takes a nucleotide sequence and complements it
+    """
+    
+    # Replace nucleotides with a lowercase nucleotide (to prevent re-replacement)
+    sequence = sequence.replace('A', 't')
+    sequence = sequence.replace('C', 'g')
+    sequence = sequence.replace('G', 'c')
+    sequence = sequence.replace('T', 'a')
+    sequence = sequence.replace('R', 'y')
+    sequence = sequence.replace('Y', 'r')
+    sequence = sequence.replace('K', 'm')
+    sequence = sequence.replace('M', 'k')
+    sequence = sequence.replace('B', 'v')
+    sequence = sequence.replace('D', 'h')
+    sequence = sequence.replace('H', 'd')
+    sequence = sequence.replace('V', 'b')
+    
+    # Uppercase the replaced string
+    return sequence.upper()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -179,12 +208,14 @@ if __name__ == '__main__':
     parser.add_argument('output', type=str, help='Output JSON file.  Note: every line of the file will contain a JSON string')
     parser.add_argument('--limit', type=int, required=False, help='How many lines of input should be read?')
     parser.add_argument('--verbose', action='store_true', help='Should progress and summary statistics be printed?')
+    parser.add_argument('--dereverse', action='store_true', help='Should any reverse complements be reversed and complemented into "ordinary" sequences?')
 
     # Filtering parameters
     parser.add_argument('--matches_only', action='store_true', help='Filters out data that does not match map to the reference genome')
     parser.add_argument('--min_mismatch', type=int, help='Filters out data with less than (exclusive) the given number of mismatches')
     parser.add_argument('--max_align_score', type=int, help='Filters out data with an alignment score greater than (exclusive) the given value; Note: scores are negative')
     parser.add_argument('--min_polyAlen', type=int, help='Filters out data with a trailing poly-A tail of less than (exclusive) the given length')
+    parser.add_argument('--min_UTRlen', type=int, help='Filters out data with a leading 3\' UTR region of less than (exclusive) the given length')
     parser.add_argument('--max_non_tail_mismatches', type=int, help='Filters out data which contains more than (exclusive) the given number of mismatches in the non-tail region')
     parser.add_argument('--compute_background', type=str, help='For all data not passing the filter, adds the data to a 6mer weight matrix model of the background')
 
@@ -224,6 +255,18 @@ if __name__ == '__main__':
             break
         counter += 1
         
+        # Transform reverse complements into a non-reverse complement
+        if args.dereverse and int(data[SAM_FLAG]) & SAM_REV_COMPLEMENT_FLAG_MASK:
+            # Reverse and complement the relevant fields
+            data[SAM_SEQ] = complement_sequence(data[SAM_SEQ][::-1])
+            data[SAM_QUAL] = data[SAM_QUAL][::-1]
+            if SAM_MSMAT in data:
+                mismatches = ''.join(MISMATCH_SEARCH_REGEX.findall(data[SAM_MSMAT])[::-1])
+                data[SAM_MSMAT] = complement_sequence(mismatches)
+            
+            # Flip the relevant flag bits
+            data[SAM_FLAG] = int(data[SAM_FLAG]) ^ (SAM_REV_COMPLEMENT_FLAG_MASK | SAM_TRANSFORMED_REV_COMP_FLAG_MASK)
+        
         backgroundDelta = None
         if args.compute_background:
             # Flatten the sequence into a 15x75 matrix
@@ -247,13 +290,13 @@ if __name__ == '__main__':
                 continue
 
         # Remove all sequences that strongly match the reference
-        if args.min_mismatch:
-            if SAM_NUMMM in data and int(data[SAM_NUMMM]) < args.min_mismatch:
+        if args.min_mismatch and SAM_NUMMM in data:
+            if int(data[SAM_NUMMM]) < args.min_mismatch:
                 continue
 
         # Filter out sequences with high scores
-        if args.max_align_score:
-            if SAM_A_SCR in data and int(data[SAM_A_SCR]) > args.max_align_score:
+        if args.max_align_score and SAM_A_SCR in data:
+            if int(data[SAM_A_SCR]) > args.max_align_score:
                 continue
 
         # Find the poly-A tail region if necessary
@@ -266,14 +309,24 @@ if __name__ == '__main__':
                 regex = POLY_T_TAIL_SEARCH_REGEX
 
             tail = regex.search(data[SAM_SEQ])
+        if tail is not None:
+            tail = tail.groups()[0]
 
         # Remove all sequences without a significant poly-A tail
         if args.min_polyAlen:
-            if tail is None or len(tail.groups()[0]) < args.min_polyAlen:
+            if tail is None or len(tail) < args.min_polyAlen:
+                continue
+                
+        # Remove all sequences with a short UTR region
+        if args.min_UTRlen and tail is not None:
+            if len(data[SAM_SEQ]) - len(tail) < args.min_UTRlen:
                 continue
 
         # Remove all sequences with major mismatching in the 3' UTR
-        if args.max_non_tail_mismatches:
+        # Note: to prevent too much code duplication, 
+        #         this filter only runs on "ordinary" sequences
+        if args.max_non_tail_mismatches and SAM_MSMAT in data \
+                and int(data[SAM_FLAG]) & SAM_REV_COMPLEMENT_FLAG_MASK:
             tailIndex = len(data[SAM_SEQ]) if tail is None else tail.start()
 
             # Count mismatches up until the tail index is hit
@@ -284,7 +337,22 @@ if __name__ == '__main__':
                 if misIndex >= tailIndex:
                     break
                     
-                ##TODO
+                # Token indicates a number of matches
+                try:
+                    misIndex += int(token)
+                    continue
+                except exceptions.ValueError:
+                    pass
+                    
+                # Token indicates a deletion
+                if len(token) > 1:
+                    misCount += len(token) - 1
+                    misIndex += len(token) - 1
+                    
+                # Token indicates a mismatch
+                else:
+                    misCount += 1
+                    misIndex += 1
 
             if misCount > args.max_non_tail_mismatches:
                 continue
