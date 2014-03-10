@@ -12,6 +12,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='Takes a weight matrix model and a filtered SAM file (exported in JSON) and applies the WMM on the data.  Outputs the number of model "hits", average distance from hit to cleave site, and a histogram of hit positions')
     parser.add_argument('wmm', type=str, help='A weight matrix model')
+    parser.add_argument('background', type=str, help='A wight matrix model of the background')
     parser.add_argument('file', type=str, help='A filtered SAM file')
     parser.add_argument('output', type=str, help='File to store the histogram table')
     parser.add_argument('--limit', type=int, required=False, help='How many lines of input should be read?')
