@@ -16,24 +16,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Open the WMM
-    fileext = os.path.splitext(args.wmm)[1]
+    assert_is_json_file(args.wmm)
     model = None
-    if fileext == JSON_FILE:
-        with open(args.wmm, 'r') as f:
-            model = json.load(f)
-    else:
-        print 'Unknown input file format'
-        exit()
+    with open(args.wmm, 'r') as f:
+        model = json.load(f)
 
     # Open the background model
-    fileext = os.path.splitext(args.background)[1]
+    assert_is_json_file(args.background)
     background = None
-    if fileext == JSON_FILE:
-        with open(args.background, 'r') as f:
-            background = json.load(f)
-    else:
-        print 'Unknown input file format'
-        exit()
+    with open(args.background, 'r') as f:
+        background = json.load(f)
 
     # Normalize the models
     model = normalize_wmm(model)

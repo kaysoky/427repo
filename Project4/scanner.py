@@ -26,23 +26,22 @@ if __name__ == '__main__':
         startTime = time.clock()
 
     # Open the WMM
-    fileext = os.path.splitext(args.wmm)[1]
+    assert_is_json_file(args.wmm)
     model = None
-    if fileext == JSON_FILE:
-        with open(args.wmm, 'r') as f:
-            model = numpy.array(json.load(f))
-    else:
-        print 'Unknown input file format'
-        exit()
+    with open(args.wmm, 'r') as f:
+        model = json.load(f)
+    model = normalize_wmm(model)
+
+    # Open the background model
+    assert_is_json_file(args.background)
+    background = None
+    with open(args.background, 'r') as f:
+        background = json.load(f)
+    background = normalize_wmm(background)
 
     # Handle SAM input
-    fileext = os.path.splitext(args.file)[1]
-    iterator = None
-    if fileext == JSON_FILE:
-        iterator = json_generator(args.file)
-    else:
-        print 'Unknown input file format'
-        exit()
+    assert_is_json_file(args.file)
+    iterator = json_generator(args.file)
 
     # Open the histogram file
     output = open(args.output, 'w')
@@ -55,7 +54,20 @@ if __name__ == '__main__':
             break
         counter += 1
 
+        # Find the location of the tail
+        tail = POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
+        tail = len(data[SAM_SEQ]) if tail is None else tail.start()
+        
+        # Extract the UTR region of the sequence
+        sequence = matrixify_sequence(data[SAM_SEQ][:tail])
+        
+        # Apply the WMM and background to the sequence
+        scores = apply_wmm_to_sequence(model, sequence) / apply_wmm_to_sequence(background, sequence)
+        
         ## TODO
+        ## Check for a motif hit
+        scores = numpy.log(scores)
+        
         ## Compute number of motif hits
         ##   average distance to cleave site
         ##   histogram of hit positions

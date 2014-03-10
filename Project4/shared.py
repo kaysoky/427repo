@@ -1,3 +1,4 @@
+import os 
 import re
 import json
 import numpy
@@ -96,6 +97,10 @@ Tokenizes the string representing mismatching positions of a sequence mapping
 """
 MISMATCH_SEARCH_REGEX = re.compile(r"([A-Z]|\^[A-Z]+|[0-9]+)")
 
+def assert_is_json_file(filename):
+    fileext = os.path.splitext(filename)[1]
+    assert fileext == JSON_FILE, 'File "%s" requires %s extension' % (filename, JSON_FILE)
+
 def json_generator(filename):
     """
     Opens a processed SAM file that was exported in JSON
@@ -187,3 +192,43 @@ def normalize_wmm(wmm):
     assert wmm.shape[1] == WMM_LENGTH, "Weight matrix model must have %d columns" % WMM_LENGTH
     
     return wmm / numpy.sum(wmm, 0)
+    
+def apply_wmm_to_sequence(wmm, sequence):
+    """
+    Applies the given WMM to the given matrixified sequence 
+        (See: matrixify_sequence(...))
+    Returns a Numpy array of length sequence.shape()[1] - WMM_LENGTH + 1
+        where each probabiltity corresponds to the probability 
+        of the WMM matching the sequence at that index
+    """
+    
+    '''
+    The result of [sequence]^T * [wmm] will be a matrix like:
+        | 1 0 0 0 0 0 |
+        | 2 1 0 0 0 0 |
+        | 3 2 1 0 0 0 |
+        | 4 3 2 1 0 0 |
+        | 5 4 3 2 1 0 |
+        | 6 5 4 3 2 1 |
+        | 7 6 5 4 3 2 |
+        | 0 7 6 5 4 3 |
+        | 0 0 7 6 5 4 |
+        | 0 0 0 7 6 5 |
+        | 0 0 0 0 7 6 |
+        | 0 0 0 0 0 7 |
+    Where 0 indicates a value that makes no sense as part of the WMM score
+        and 1-7 indicate partial scores of a particular position in the sequence
+    The result must be shifted up and summed before returning
+    '''
+    scores = numpy.dot(numpy.transpose(sequence), wmm)
+    
+    resultLength = scores.shape[0] - WMM_LENGTH + 1
+    assert resultLength > 0, "Not enough data to apply the WMM against"
+    
+    # Shift columns upwards
+    for index in range(1, WMM_LENGTH):
+        scores[0:resultLength, index] = scores[index:(index + resultLength), index]
+    
+    # Add up the relevant rows and normalize the probabilities
+    scores = numpy.sum(scores[0:resultLength, :], 1)
+    return scores / numpy.sum(scores)

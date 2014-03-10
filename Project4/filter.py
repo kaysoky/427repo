@@ -102,11 +102,12 @@ if __name__ == '__main__':
         exit()
 
     # Open up the output file for writing
-    fileext = os.path.splitext(args.output)[1]
-    if fileext != JSON_FILE:
-        print 'Only JSON file format is acceptable for output'
-        exit()
+    assert_is_json_file(args.output)
     output = open(args.output, 'w')
+    
+    # Check the background model output file for correctness
+    if args.compute_background:
+        assert_is_json_file(args.compute_background)
 
     # Since the input file might not fit in memory
     # Use a generator to read in and process the file line by line
