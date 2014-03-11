@@ -45,6 +45,11 @@ if __name__ == '__main__':
 
     # Open the histogram file
     output = open(args.output, 'w')
+    
+    # Declare the statistics we're looking for
+    motifHits = 0
+    motifDistance = 0
+    motifHistogram = numpy.zeros(101)
 
     # Use a generator to read in and process the file line by line
     counter = 0
@@ -64,13 +69,22 @@ if __name__ == '__main__':
         # Apply the WMM and background to the sequence
         scores = apply_wmm_to_sequence(model, sequence) / apply_wmm_to_sequence(background, sequence)
         
-        ## TODO
-        ## Check for a motif hit
+        # Check for a motif hit
         scores = numpy.log(scores)
+        maxScore = numpy.max(scores)
+        if maxScore <= 0:
+            continue
+            
+        # There's a hit, so tabulate it
+        lastHitIndex = numpy.where(scores == maxScore)[-1][-1]
+        lastHitDistance = tail - lastHitIndex
+        motifHits += 1
+        motifDistance += lastHitDistance
+        motifHistogram[lastHitDistance] += 1
         
-        ## Compute number of motif hits
-        ##   average distance to cleave site
-        ##   histogram of hit positions
+    ##TODO
+    # Output the number of hits and average distance
+    # Output the histogram
 
     # Close the histogram output file
     output.close()

@@ -14,13 +14,13 @@
         {\tiny Typeset via \LaTeX}
     \end{center}
     
-\section{Usage Instructions}
-    For candidate selection, I wrote a script with various parameters to experiment with.  
-    The tool is self-documented sufficiently: \\
-    \texttt{python filter.py -h | tee Usage.out}
-    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage.out}
-    
 \section{Candidate Selection}
+    \subsection{Usage intructions}
+    For candidate selection, I wrote a script with various parameters to experiment with.  
+    The tool is self-documented and I included the commands used in the following sections: \\
+    \texttt{python filter.py -h}
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage-Filter.out}
+    
     \subsection{``Junk'' filtration}
         Since we are working with files that do not fit in memory, 
             I used the ``generator'' pattern in Python to keep memory utilization at a minimum.
@@ -38,8 +38,7 @@
             
         The following command was run for this step: \\
         \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --compute\_background \\
-                00-01-background.json --verbose all.sam 00-01-MMM3-MPA3.json \\
-                | tee 00-01-MMM3-MPA3.out}
+                00-01-background.json --verbose all.sam 00-01-MMM3-MPA3.json}
         
         With the following output:
         \lstinputlisting[basicstyle=\small\ttfamily]{00-01-MMM3-MPA3.out}
@@ -47,22 +46,30 @@
             leaving a very manageable number of data points.  
         From here, more stringent filters can be applied within a reasonable amount of time.
         
-        Note: The majority of the runtime of this step was consumed by the calculation of the background model.
-        If I exclude this filter, the runtime decreases to about 40 minutes. 
+    \subsection{Background model}
+        The majority of the runtime of the preceeding step was consumed by the calculation of the background model.
+        If I exclude this process, the runtime decreases to about 40 minutes. 
         However, as a result of counting the nucleotide occurrences in this way, 
-            I'm fairly confident that the background frequencies are biased 
-            towards A's and T's.
+            I'm fairly confident that the background frequencies are slightly biased towards A's and T's.
         This will undoubtedly give a different relative entropy than a uniform background model.  
+        
+        This is the calculated background model, with probabilities rounded down to 5 decimal places: \\
+        \begin{tabular}{r*{6}{|c}}
+            Position & 1 & 2 & 3 & 4 & 5 & 6 \\ \hline
+            A & 0.28249 & 0.28280 & 0.28269 & 0.28286 & 0.28263 & 0.28151 \\ \hline
+            C & 0.23456 & 0.23381 & 0.23410 & 0.23416 & 0.23435 & 0.23502 \\ \hline
+            G & 0.21025 & 0.20966 & 0.20938 & 0.20935 & 0.20919 & 0.20984 \\ \hline
+            T & 0.27270 & 0.27373 & 0.27382 & 0.27362 & 0.27382 & 0.27363
+        \end{tabular}
     
     \subsection{Normalization and refinement}
         My next step was to reduce the set of candidates to a stronger set.  
-        I wanted to modify all reverse complements into non-reversed non-complements 
+        I wanted to first modify all reverse complements into non-reversed non-complements 
             in order to simplify calculations.  I did this with the following command: \\
         \texttt{python filter.py --dereverse --verbose 00-01-MMM3-MPA3.json 01-02-DRV.json}
             
-        I followed this with a filter for a longer poly-A tail:
-        \texttt{python filter.py --min\_polyAlen 10 --verbose 01-02-DRV.json 02-03-MPA10.json \\
-                | tee 02-03-MPA10.out}
+        I followed this with a filter for a longer poly-A tail: \\
+        \texttt{python filter.py --min\_polyAlen 10 --verbose 01-02-DRV.json 02-03-MPA10.json}
     
         With the following output:
         \lstinputlisting[basicstyle=\small\ttfamily]{02-03-MPA10.out}
@@ -75,7 +82,7 @@
         Next I got rid of all the sequences with major mismatching the 3' UTR region
             and all the sequences with short leading sections: \\
         \texttt{python filter.py --max\_non\_tail\_mismatches 6 --min\_UTRlen 18 --verbose \\
-                02-03-MPA10.json 03-04-NTM10-MUL18.json | tee 03-04-NTM10-MUL18.out}
+                02-03-MPA10.json 03-04-NTM10-MUL18.json}
     
         With the following output:
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-NTM10-MUL18.out}
