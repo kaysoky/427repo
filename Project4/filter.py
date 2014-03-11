@@ -184,8 +184,8 @@ if __name__ == '__main__':
         # Note: to prevent too much code duplication, 
         #         this filter only runs on "ordinary" sequences
         if args.max_non_tail_mismatches and SAM_MSMAT in data \
-                and int(data[SAM_FLAG]) & SAM_REV_COMPLEMENT_FLAG_MASK:
-            tailIndex = len(data[SAM_SEQ]) if tail is None else tail.start()
+                and not int(data[SAM_FLAG]) & SAM_REV_COMPLEMENT_FLAG_MASK:
+            tailIndex = len(data[SAM_SEQ]) - (0 if tail is None else len(tail))
 
             # Count mismatches up until the tail index is hit
             misCount = 0
@@ -199,7 +199,7 @@ if __name__ == '__main__':
                 try:
                     misIndex += int(token)
                     continue
-                except exceptions.ValueError:
+                except ValueError:
                     pass
                     
                 # Token indicates a deletion

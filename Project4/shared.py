@@ -148,37 +148,59 @@ def matrixify_sequence(sequence):
     return numpy.dot(WMM_STANDARD_COUNT, flattened)
 
 COUNT_AGGREGATOR_CACHE = {}
-def get_wmm_count_aggregator(seqLen):
+def get_wmm_count_aggregator(seqLen=None, probabilities=None):
     """
-    Returns a seqLen by WMM_LENGTH matrix used to aggregate nucleotide counts into a WMM
+    If a sequence length is provided, 
+        returns a sequence length by WMM_LENGTH matrix 
+            used to aggregate nucleotide counts into a WMM
+    If a probability array is provided,
+        returns a len(probabilities) by WMM_LENGTH matrix 
+            used to aggregate weighted nucleotide counts into a WMM
     """
 
-    if seqLen in COUNT_AGGREGATOR_CACHE:
-        return COUNT_AGGREGATOR_CACHE[seqLen]
-
-    '''
-    numpy.triu() and numpy.tril() return the upper and lower triangular portions of a matrix
-    I use this to construct the middle matrix, which is subtracted from the left matrix:
-        | 1 1 1 1 1 1 |   | 0 1 1 1 1 1 |   | 1 0 0 0 0 0 |
-        | 1 1 1 1 1 1 |   | 0 0 1 1 1 1 |   | 1 1 0 0 0 0 |
-        | 1 1 1 1 1 1 |   | 0 0 0 1 1 1 |   | 1 1 1 0 0 0 |
-        | 1 1 1 1 1 1 |   | 0 0 0 0 1 1 |   | 1 1 1 1 0 0 |
-        | 1 1 1 1 1 1 |   | 0 0 0 0 0 1 |   | 1 1 1 1 1 0 |
-        | 1 1 1 1 1 1 |   | 0 0 0 0 0 0 |   | 1 1 1 1 1 1 |
-        |     ...     | - |     ...     | = |     ...     |
-        | 1 1 1 1 1 1 |   | 0 0 0 0 0 0 |   | 1 1 1 1 1 1 |
-        | 1 1 1 1 1 1 |   | 1 0 0 0 0 0 |   | 0 1 1 1 1 1 |
-        | 1 1 1 1 1 1 |   | 1 1 0 0 0 0 |   | 0 0 1 1 1 1 |
-        | 1 1 1 1 1 1 |   | 1 1 1 0 0 0 |   | 0 0 0 1 1 1 |
-        | 1 1 1 1 1 1 |   | 1 1 1 1 0 0 |   | 0 0 0 0 1 1 |
-        | 1 1 1 1 1 1 |   | 1 1 1 1 1 0 |   | 0 0 0 0 0 1 |
-    '''
-    square = numpy.ones((WMM_LENGTH, WMM_LENGTH))
-    aggregator = numpy.ones((seqLen, WMM_LENGTH))
-    aggregator[0:WMM_LENGTH, 0:WMM_LENGTH] += numpy.tril(square) - 1
-    aggregator[(seqLen - WMM_LENGTH):, 0:WMM_LENGTH] += numpy.triu(square) - 1
     
-    COUNT_AGGREGATOR_CACHE[seqLen] = aggregator
+    if seqLen is not None:
+        # Generating the aggregator matrix might be expensive, 
+        #   so cache it for each supplied length
+        if seqLen in COUNT_AGGREGATOR_CACHE:
+            return COUNT_AGGREGATOR_CACHE[seqLen]
+            
+        probabilities = numpy.ones(seqLen)
+    
+    elif probabilities is not None:
+        probabilities = numpy.reshape(probabilities, (-1))
+        
+    else:
+        print 'Either "seqLen" or "probabilities" must be provided'
+        exit()
+
+    '''
+    Construct a matrix that looks like:
+    | 1 0 0 0 0 0 |
+    | 1 1 0 0 0 0 |
+    | 1 1 1 0 0 0 |
+    | 1 1 1 1 0 0 |
+    | 1 1 1 1 1 0 |
+    | 1 1 1 1 1 1 |
+    |     ...     |
+    | 1 1 1 1 1 1 |
+    | 0 1 1 1 1 1 |
+    | 0 0 1 1 1 1 |
+    | 0 0 0 1 1 1 |
+    | 0 0 0 0 1 1 |
+    | 0 0 0 0 0 1 |
+    Where the 1's correspond to the passed in probability matrix
+    '''
+    probRows = numpy.size(probabilities)
+    numRows = probRows + WMM_LENGTH - 1
+    aggregator = numpy.zeros((numRows, WMM_LENGTH))
+    for index in range(0, WMM_LENGTH):
+        aggregator[index:(index + probRows), index] = probabilities
+    
+    # For the count aggregator, store the result since it can be reused
+    if seqLen is not None:
+        COUNT_AGGREGATOR_CACHE[seqLen] = aggregator
+        
     return aggregator
     
 def normalize_wmm(wmm):
@@ -218,7 +240,7 @@ def apply_wmm_to_sequence(wmm, sequence):
         | 0 0 0 0 0 7 |
     Where 0 indicates a value that makes no sense as part of the WMM score
         and 1-7 indicate partial scores of a particular position in the sequence
-    The result must be shifted up and summed before returning
+    All values in the same bucket must be multiplied together before returning
     '''
     scores = numpy.dot(numpy.transpose(sequence), wmm)
     
@@ -226,9 +248,13 @@ def apply_wmm_to_sequence(wmm, sequence):
     assert resultLength > 0, "Not enough data to apply the WMM against"
     
     # Shift columns upwards
+    probabilities = scores[0:resultLength, 0]
     for index in range(1, WMM_LENGTH):
-        scores[0:resultLength, index] = scores[index:(index + resultLength), index]
+        probabilities *= scores[index:(index + resultLength), index]
     
     # Add up the relevant rows and normalize the probabilities
-    scores = numpy.sum(scores[0:resultLength, :], 1)
-    return scores / numpy.sum(scores)
+    total = numpy.sum(probabilities)
+    if total > 0:
+        return probabilities / total
+    else:
+        return probabilities

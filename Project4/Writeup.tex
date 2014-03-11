@@ -4,6 +4,8 @@
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{listings}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.7}
 
 \begin{document}
     \begin{center}
@@ -13,46 +15,52 @@
         March 6-13, 2014 \\
         {\tiny Typeset via \LaTeX}
     \end{center}
-    
+
+\section{(Super slow) Computer Specs}
+    1.3 GHz dual-core (single threaded program) \\
+    800 MHz front side bus \\
+    4 GB RAM \\
+    Standard hard disk (Average latency 5.6 ms, Random seek time 14 ms)
+
 \section{Candidate Selection}
     \subsection{Usage intructions}
-    For candidate selection, I wrote a script with various parameters to experiment with.  
+    For candidate selection, I wrote a script with various parameters to experiment with.
     The tool is self-documented and I included the commands used in the following sections: \\
     \texttt{python filter.py -h}
     \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage-Filter.out}
-    
+
     \subsection{``Junk'' filtration}
-        Since we are working with files that do not fit in memory, 
+        Since we are working with files that do not fit in memory,
             I used the ``generator'' pattern in Python to keep memory utilization at a minimum.
         I planned to first parse the SAM file and filter out the most obvious non-candidates:
-            near perfect matches (3 or more mismatches) 
-            and sequences without a significant poly-A tail (at least 3 A's). 
-        I made the filter for poly-A tails very lenient, 
+            near perfect matches (3 or more mismatches)
+            and sequences without a significant poly-A tail (at least 3 A's).
+        I made the filter for poly-A tails very lenient,
             in that it also counts the letters R, W, M, D, H, V, and N
-            as part of the tail.  
+            as part of the tail.
         These are, as part of IUPAC standard nucleotide notation, possible A's.
-        I would then output that result in a JSON file, 
+        I would then output that result in a JSON file,
             which could be piped back into the same program for further filtering.
-            
+
         \textbf{Extra credit:} The poly-A tail filter also includes a poly-T head filter for reverse complements.
-            
+
         The following command was run for this step: \\
         \texttt{python filter.py --min\_mismatch 3 --min\_polyAlen 3 --compute\_background \\
                 00-01-background.json --verbose all.sam 00-01-MMM3-MPA3.json}
-        
+
         With the following output:
         \lstinputlisting[basicstyle=\small\ttfamily]{00-01-MMM3-MPA3.out}
-        Even though this filter was very generous, it conserved about 1 in 200 sequences, 
-            leaving a very manageable number of data points.  
+        Even though this filter was very generous, it conserved about 1 in 200 sequences,
+            leaving a very manageable number of data points.
         From here, more stringent filters can be applied within a reasonable amount of time.
-        
+
     \subsection{Background model}
         The majority of the runtime of the preceeding step was consumed by the calculation of the background model.
-        If I exclude this process, the runtime decreases to about 40 minutes. 
-        However, as a result of counting the nucleotide occurrences in this way, 
+        If I exclude this process, the runtime decreases to about 40 minutes.
+        However, as a result of counting the nucleotide occurrences in this way,
             I'm fairly confident that the background frequencies are slightly biased towards A's and T's.
-        This will undoubtedly give a different relative entropy than a uniform background model.  
-        
+        This will undoubtedly give a different relative entropy than a uniform background model.
+
         This is the calculated background model, with probabilities rounded down to 5 decimal places: \\
         \begin{tabular}{r*{6}{|c}}
             Position & 1 & 2 & 3 & 4 & 5 & 6 \\ \hline
@@ -61,39 +69,136 @@
             G & 0.21025 & 0.20966 & 0.20938 & 0.20935 & 0.20919 & 0.20984 \\ \hline
             T & 0.27270 & 0.27373 & 0.27382 & 0.27362 & 0.27382 & 0.27363
         \end{tabular}
-    
+
     \subsection{Normalization and refinement}
-        My next step was to reduce the set of candidates to a stronger set.  
-        I wanted to first modify all reverse complements into non-reversed non-complements 
+        My next step was to reduce the set of candidates to a stronger set.
+        I wanted to first modify all reverse complements into non-reversed non-complements
             in order to simplify calculations.  I did this with the following command: \\
         \texttt{python filter.py --dereverse --verbose 00-01-MMM3-MPA3.json 01-02-DRV.json}
-            
+
         I followed this with a filter for a longer poly-A tail: \\
         \texttt{python filter.py --min\_polyAlen 10 --verbose 01-02-DRV.json 02-03-MPA10.json}
-    
+
         With the following output:
         \lstinputlisting[basicstyle=\small\ttfamily]{02-03-MPA10.out}
-                
-        I compared this result with the same filter on the previous filter result 
+
+        I compared this result with the same filter on the previous filter result
             in order to check my revere complement code.
         If correct, I should get the same number of results: \\
         \texttt{python filter.py --min\_polyAlen 10 --verbose 00-01-MMM3-MPA3.json 01-02-TEST.json}
-        
+
         Next I got rid of all the sequences with major mismatching the 3' UTR region
             and all the sequences with short leading sections: \\
-        \texttt{python filter.py --max\_non\_tail\_mismatches 6 --min\_UTRlen 18 --verbose \\
-                02-03-MPA10.json 03-04-NTM10-MUL18.json}
-    
-        With the following output:
-        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-NTM10-MUL18.out}
-        Peeking at the data, it seems like the remaining data is suitable as a set of candidates.
-        
-    \subsection{WMM$_0$}
-        TODO
+        \texttt{python filter.py --max\_non\_tail\_mismatches 4 --min\_UTRlen 18 --verbose \\
+                02-03-MPA10.json 03-04-NTM4-MUL18.json}
 
-\section{(Super slow) Computer Specs}
-    1.3 GHz dual-core (single threaded program) \\
-    800 MHz front side bus \\
-    4 GB RAM \\
-    Standard hard disk (not solid state)
+        With the following output:
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-NTM4-MUL18.out}
+        Peeking at the data, it seems like the remaining data is suitable as a set of candidates.
+
+\section{Script usage instructions}
+    \texttt{python scanner.py -h}
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage-Scanner.out}
+    \texttt{python entropy.py -h}
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage-Entropy.out}
+    \texttt{python meme.py -h}
+    \lstinputlisting[basicstyle=\scriptsize\ttfamily]{Usage-Meme.out}
+
+    I ran the candidates through the analysis and relative entropy calculations
+        with both computed and uniform background models.
+
+\section{Computed Background results}
+    \subsection{WMM$_0$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM0-background.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM0-background-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM0-background.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+    \subsection{WMM$_1$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM1-background.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM1-background-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM1-background.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+    \subsection{WMM$_2$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM2-background.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM2-background-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM2-background.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+\section{Uniform background results}
+    \subsection{WMM$_0$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM0-uniform.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM0-uniform-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM0-uniform.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+    \subsection{WMM$_1$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM1-uniform.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM1-uniform-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM1-uniform.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+    \subsection{WMM$_2$}
+        \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM2-uniform.out}
+        \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM2-uniform-entropy.out}
+        \begin{tikzpicture}
+            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                    xlabel=Distance to tail, ylabel=Motif hit count,
+                    width=0.9\textwidth, height=200pt]
+                \addplot[black] table[x=Distance, y=Count] {03-04-WMM2-uniform.tsv};
+            \end{axis}
+        \end{tikzpicture}
+
+\section{Conclusions}
+    Seeing as how we are looking for the AATAAA pattern, 
+        I would expect WMM$_0$ to perform the best.
+    However, the histograms of motif hits between WMM$_0$ and WMM$_1$ are mostly indistinguishable.  
+    WMM$_1$ had more spikes and didn't exclude as many candidates, but the shape of the plot seemed similar.
+    
+    On the other hand, WMM$_2$ showed fewer spikes, 
+        but it's probability model also closely resembled that of the computed background model.
+    The relative entropy of the MEME'ed model was also relatively low.  
+    This is the result of using the computed background as the WMM (against a uniform background): \\
+    \begin{tikzpicture}
+        \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                xlabel=Distance to tail, ylabel=Motif hit count,
+                width=0.9\textwidth, height=200pt]
+            \addplot[black] table[x=Distance, y=Count] {03-04-background-uniform.tsv};
+        \end{axis}
+    \end{tikzpicture}
+    
+    Comparing the histograms, the spike at position 8 seems to be the result of bad filtering.
+    Whereas the spike at 23-24 seems to be a consensus between the plots.  
+    More interestingly, none of the WMM's beyhond the first one \textit{failed} to find a motif.  
+    However, if I look at a few candidates, 
+        none of their log-likelihoods are particularly high.
+    From the limited sample I browsed, the maximums typically fell below 2.
+    And the values were much lower for WMM$_1$ and WMM$_2$ compared to WMM$_0$.  
+
 \end{document}

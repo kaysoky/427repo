@@ -6,7 +6,7 @@ import time
 import numpy
 
 # Import some helper functions and globals
-from filter import *
+from shared import *
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -24,36 +24,43 @@ if __name__ == '__main__':
         startTime = time.clock()
 
     # Open the WMM
-    fileext = os.path.splitext(args.wmm)[1]
+    assert_is_json_file(args.wmm)
     model = None
-    if fileext == JSON_FILE:
-        with open(args.wmm, 'r') as f:
-            model = numpy.array(json.load(f))
-    else:
-        print 'Unknown input file format'
-        exit()
+    with open(args.wmm, 'r') as f:
+        model = json.load(f)
+    model = normalize_wmm(model)
 
     # Handle SAM input
-    fileext = os.path.splitext(args.file)[1]
-    iterator = None
-    if fileext == JSON_FILE:
-        iterator = json_generator(args.file)
-    else:
-        print 'Unknown input file format'
-        exit()
+    assert_is_json_file(args.file)
+    iterator = json_generator(args.file)
 
     # Open the WMM output file
     output = open(args.output, 'w')
 
     # Use a generator to read in and process the file line by line
+    memeModel = numpy.zeros((4, WMM_LENGTH))
     for data in iterator:
-        ## TODO
-        ## Run MEME
+        # Find the location of the tail
+        tail = POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
+        tail = len(data[SAM_SEQ]) if tail is None else tail.start()
+
+        # Extract the UTR region of the sequence
+        sequence = matrixify_sequence(data[SAM_SEQ][:tail])
+        
+        # Apply the WMM to the sequence
+        scores = apply_wmm_to_sequence(model, sequence)
+        
+        # Add up the weighted scores and add that to the new model
+        aggregator = get_wmm_count_aggregator(probabilities=scores)
+        modelDelta = numpy.dot(sequence, aggregator)
+        modelDelta = normalize_wmm(modelDelta)
+        memeModel += modelDelta
 
     # Close the WMM output file
+    json.dump(memeModel.tolist(), output)
     output.close()
 
     if args.verbose:
         # Print how long the filter took
         elapsed = (time.clock() - startTime)
-        print 'Analysis finished in %f seconds' % elapsed
+        print 'Iteration finished in %f seconds' % elapsed

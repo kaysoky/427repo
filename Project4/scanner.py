@@ -8,6 +8,11 @@ import numpy
 # Import some helper functions and globals
 from filter import *
 
+"""
+Size of the histogram
+"""
+HISTOGRAM_SIZE = 75
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
             description='Takes a weight matrix model and a filtered SAM file (exported in JSON) and applies the WMM on the data.  Outputs the number of model "hits", average distance from hit to cleave site, and a histogram of hit positions')
@@ -45,11 +50,11 @@ if __name__ == '__main__':
 
     # Open the histogram file
     output = open(args.output, 'w')
-    
+
     # Declare the statistics we're looking for
     motifHits = 0
     motifDistance = 0
-    motifHistogram = numpy.zeros(101)
+    motifHistogram = numpy.zeros(HISTOGRAM_SIZE)
 
     # Use a generator to read in and process the file line by line
     counter = 0
@@ -62,29 +67,34 @@ if __name__ == '__main__':
         # Find the location of the tail
         tail = POLY_A_TAIL_SEARCH_REGEX.search(data[SAM_SEQ])
         tail = len(data[SAM_SEQ]) if tail is None else tail.start()
-        
+
         # Extract the UTR region of the sequence
         sequence = matrixify_sequence(data[SAM_SEQ][:tail])
-        
+
         # Apply the WMM and background to the sequence
         scores = apply_wmm_to_sequence(model, sequence) / apply_wmm_to_sequence(background, sequence)
-        
+
         # Check for a motif hit
         scores = numpy.log(scores)
         maxScore = numpy.max(scores)
         if maxScore <= 0:
             continue
-            
+
         # There's a hit, so tabulate it
         lastHitIndex = numpy.where(scores == maxScore)[-1][-1]
         lastHitDistance = tail - lastHitIndex
         motifHits += 1
         motifDistance += lastHitDistance
         motifHistogram[lastHitDistance] += 1
-        
-    ##TODO
+
     # Output the number of hits and average distance
+    print 'Motif hits: %d out of %d' % (motifHits, counter)
+    print 'Average distance: %f' % (float(motifDistance) / motifHits)
+
     # Output the histogram
+    output.write('Distance\tCount\n')
+    for i in range(HISTOGRAM_SIZE):
+        output.write('%d\t%d\n' % (i + 1, motifHistogram[i]))
 
     # Close the histogram output file
     output.close()
