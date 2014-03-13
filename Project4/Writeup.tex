@@ -106,74 +106,57 @@
 
     I ran the candidates through the analysis and relative entropy calculations
         with both computed and uniform background models.
+        
+\section{WMM$_2$}
+    This is the WMM after one iteration of MEME, rounded down to 5 decimal places: \\
+    \begin{tabular}{r*{6}{|c}}
+        Position & 1 & 2 & 3 & 4 & 5 & 6 \\ \hline
+        A & 0.96079 & 0.95434 & 0.41937 & 0.96030 & 0.96312 & 0.96384 \\ \hline
+        C & 0.01259 & 0.01237 & 0.02650 & 0.01139 & 0.01186 & 0.01048 \\ \hline
+        G & 0.01076 & 0.01229 & 0.02375 & 0.01301 & 0.01063 & 0.01150 \\ \hline
+        T & 0.01586 & 0.02099 & 0.53037 & 0.01530 & 0.01438 & 0.01417
+    \end{tabular}
 
+\newcommand{\MakeHistogram}[1]{
+    \begin{tikzpicture}
+        \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
+                xlabel=Distance to tail, ylabel=Motif hit count,
+                width=0.9\textwidth, height=200pt]
+            \addplot[black] table[x=Distance, y=Count] {#1};
+        \end{axis}
+    \end{tikzpicture}
+}
 \section{Computed Background results}
     \subsection{WMM$_0$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM0-background.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM0-background-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM0-background.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM0-background.tsv}
 
     \subsection{WMM$_1$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM1-background.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM1-background-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM1-background.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM1-background.tsv}
 
     \subsection{WMM$_2$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM2-background.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM2-background-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM2-background.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM2-background.tsv}
 
 \section{Uniform background results}
     \subsection{WMM$_0$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM0-uniform.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM0-uniform-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM0-uniform.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM0-uniform.tsv}
 
     \subsection{WMM$_1$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM1-uniform.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM1-uniform-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM1-uniform.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM1-uniform.tsv}
 
     \subsection{WMM$_2$}
         \lstinputlisting[basicstyle=\small\ttfamily]{03-04-WMM2-uniform.out}
         \lstinputlisting[basicstyle=\small\ttfamily]{00-WMM2-uniform-entropy.out}
-        \begin{tikzpicture}
-            \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                    xlabel=Distance to tail, ylabel=Motif hit count,
-                    width=0.9\textwidth, height=200pt]
-                \addplot[black] table[x=Distance, y=Count] {03-04-WMM2-uniform.tsv};
-            \end{axis}
-        \end{tikzpicture}
+        \MakeHistogram{03-04-WMM2-uniform.tsv}
 
 \section{Conclusions}
     Seeing as how we are looking for the AATAAA pattern, 
@@ -181,24 +164,15 @@
     However, the histograms of motif hits between WMM$_0$ and WMM$_1$ are mostly indistinguishable.  
     WMM$_1$ had more spikes and didn't exclude as many candidates, but the shape of the plot seemed similar.
     
-    On the other hand, WMM$_2$ showed fewer spikes, 
-        but it's probability model also closely resembled that of the computed background model.
-    The relative entropy of the MEME'ed model was also relatively low.  
-    This is the result of using the computed background as the WMM (against a uniform background): \\
-    \begin{tikzpicture}
-        \begin{axis}[ybar, bar width=2pt, enlargelimits=0,
-                xlabel=Distance to tail, ylabel=Motif hit count,
-                width=0.9\textwidth, height=200pt]
-            \addplot[black] table[x=Distance, y=Count] {03-04-background-uniform.tsv};
-        \end{axis}
-    \end{tikzpicture}
+    WMM$_2$ showed fewer spikes, but again, the shape of plot was similar.  
+    It's probability model also closely resembled that of WMM$_1$, 
+        the major difference was that the third letter was roughly evenly split between A's and T's.
+    The relative entropy of the MEME'ed model was slightly higher than WMM$_1$ too.   
+    
+    As a comparison, I tried using the computed background as a WMM against a uniform background: \\
+    \MakeHistogram{03-04-background-uniform.tsv}
     
     Comparing the histograms, the spike at position 8 seems to be the result of bad filtering.
     Whereas the spike at 23-24 seems to be a consensus between the plots.  
-    More interestingly, none of the WMM's beyhond the first one \textit{failed} to find a motif.  
-    However, if I look at a few candidates, 
-        none of their log-likelihoods are particularly high.
-    From the limited sample I browsed, the maximums typically fell below 2.
-    And the values were much lower for WMM$_1$ and WMM$_2$ compared to WMM$_0$.  
 
 \end{document}

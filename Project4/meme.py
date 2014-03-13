@@ -53,7 +53,6 @@ if __name__ == '__main__':
         # Add up the weighted scores and add that to the new model
         aggregator = get_wmm_count_aggregator(probabilities=scores)
         modelDelta = numpy.dot(sequence, aggregator)
-        modelDelta = normalize_wmm(modelDelta)
         memeModel += modelDelta
 
     # Close the WMM output file

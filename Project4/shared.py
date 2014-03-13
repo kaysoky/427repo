@@ -247,14 +247,8 @@ def apply_wmm_to_sequence(wmm, sequence):
     resultLength = scores.shape[0] - WMM_LENGTH + 1
     assert resultLength > 0, "Not enough data to apply the WMM against"
     
-    # Shift columns upwards
+    # Shift and combine the columns upwards
     probabilities = scores[0:resultLength, 0]
     for index in range(1, WMM_LENGTH):
         probabilities *= scores[index:(index + resultLength), index]
-    
-    # Add up the relevant rows and normalize the probabilities
-    total = numpy.sum(probabilities)
-    if total > 0:
-        return probabilities / total
-    else:
-        return probabilities
+    return probabilities
